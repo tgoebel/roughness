@@ -6,7 +6,7 @@ of micron-scale lab-fault topography.
 Analysis steps:
 1) create regular grid and remove outliers, fill data gaps
 2) detrend the surface
-3) stack slip parallel or orthogomal profiles
+3) stack slip parallel or orthogonal profiles
 4) fit the PSD of stacked profiles and compute exponent based on lsq of log-transformed data
 
 

@@ -11,4 +11,5 @@ Analysis steps:
 
 
 Input file: fault_roughness.txt
-!make sure to adjust dir_in to point to right data directory before running the script
+
+!make sure to adjust dir_in - variable to point to right data directory before running the script

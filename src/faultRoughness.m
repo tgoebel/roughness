@@ -1,9 +1,10 @@
-% 
-% fault roughness analysis, based on 2D surface scans
+% CERI 7104/8104 Data Analysis in Geophysics
 %
-% 
+%
+% fault roughness analysis
 %
 % @author thgoebel, CERI U of Memphis
+clear all
 
 %=======================1==================================================
 %                  parameters
@@ -11,78 +12,106 @@
 data_dir = "~/Documents/teaching/CERI/DataAnalysis_7104/data/";
 file_in  = "fault_roughness.txt";
 
-zMin = -40;
+plot_surf = 0;
+zMin = -40; % only for surface plots
 zMax =  40;
 
-XYZ = load(strcat(data_dir,file_in));
-dx  = XYZ(2,1) - XYZ(1,1);
-fprintf( '%s%.2f', 'grid spacing :', dx)
 %=======================2==================================================
-%                  data pre-processing
+%                   load data, gridding, detrending etc.
 %==========================================================================
+XYZ = load(strcat(data_dir,file_in));
 %A% remove nans
 XYZ =  XYZ(~isnan(XYZ(:,3)),:);
-Z   =  XYZ(:,3);
-X   =  XYZ(:,1);
-Y   =  XYZ(:,2);
+Z     =  XYZ(:,3);
+X     =  XYZ(:,1);
+Y     =  XYZ(:,2);
+a_x_uni = unique( X);
+a_y_uni = unique( Y);
 sprintf( '%s %.1f %.1f','range of topography:',min(Z), max(Z))
+% spacing
+dx  = X(2) - X(1);
+fprintf( '%s%.2f', 'grid spacing in x :', dx)
+dy  = a_y_uni(2) - a_y_uni(1);
+fprintf( '%s%.2f', 'grid spacing in y :', dy)
 %B% interpolation, fill gaps
-a_x = unique( X);
-a_y = unique( Y);
-[XX, YY] = meshgrid( a_x, a_y);
+[XX, YY] = meshgrid( a_x_uni, a_y_uni);
 size(XX)
 ZZ       = griddata(X, Y, Z, XX, YY, 'linear');
 
-%C%visualize raw data
-figure(1)
-clf
-pcolor( XX, YY, ZZ); 
-shading interp;
-cbar = colorbar('eastoutside');
-cbar.Label.String = 'Roughness';
-
 %D% detrend
 ZZ_detr = detrend_2d(ZZ);
-figure(2)
-clf
-pcolor( XX, YY, ZZ_detr); 
-colormap hot
-shading flat;
-cbar = colorbar('eastoutside');
-caxis([zMin, zMax]);
-cbar.Label.String = 'Roughness';
+
+%C%visualize raw data
+if plot_surf == 1
+    figure(1)
+    subplot(221)
+    pcolor( XX, YY, ZZ); 
+    title( 'raw data')
+    shading interp;
+    cbar = colorbar('eastoutside');
+    cbar.Label.String = 'Roughness';
+    
+    subplot(222)
+    title( 'detrended')
+    pcolor( XX, YY, ZZ_detr); 
+    colormap hot
+    shading flat;
+    cbar = colorbar('eastoutside');
+    caxis([zMin, zMax]);
+    cbar.Label.String = 'Roughness';
+end
 
 %=======================3==================================================
-%                  stack roughness profiles
+%                                 stack PSDs of roughness profiles
 %==========================================================================
-[Nx,Ny] = size( ZZ);
+[Ny,Nx] = size( ZZ);
+% rms roughness
+sumZ = sum(sum( ZZ_detr.^2));
+rmsZ =  ( 1./(Nx*Ny)*sumZ)^0.5;
+sprintf( "rms-roughness: %.3f", rmsZ)
+% PSD
 m_px=zeros(Ny,Nx);
 m_py=zeros(Nx,Ny);
 
 
-freq =(0:Nx-1)./(Nx*dx);
-for i=1:Nx-1
-    z1=ZZ_detr(:,i)';
-    if ~sum(isnan(z1))
-        mean( z1)
-        z1=z1-mean(z1);
-        z2=detrend(z1);
-        FFTz=fft(z2).*dx;
-        m_px(i,:)=abs(FFTz.^2).*(Nx*dx);
-%         loglog(1./freq,m_px(i,:));
-%         xlim(gca, [10, 5*1e3]); 
-%         hold on
-    else
-        m_px(i,:)=nan;
-    end
+freq =(0:Ny-1)./(Ny*dy);
+% figure(3)
+for i=1:Ny-1
+    z1=ZZ_detr(:,i);
+
+    % detrend and demean each profile
+    z1=z1-mean(z1);
+    z2=detrend(z1);
+    FFTz=fft(z2).*dy;
+    m_py(i,:)=abs(FFTz.^2).*(Ny*dy);
+    
+    % plot detrended roughness profiles
+%     plot( XX(i,:), z1, 'k-', 'LineWidth', 2)
+%     ylim( zMin, zMax)
+ 
+
 end
-a_Py=nanmean(m_px);
+
+
+freqX =(0:Nx-1)./(Nx*dx);
+for i=1:Nx-1
+    z1=ZZ_detr(i,:);
+    z1=z1-mean(z1);
+    z2=detrend(z1);
+    FFTz=fft(z2).*dx;
+    m_px(i,:)=abs(FFTz.^2).*(Nx*dx);
+end
+
+a_Px=mean(m_px);
+a_Py=mean(m_py);
 
 figure(3)
 %plot ave. power spectrum over wavelength
 loglog(1./freq,a_Py, 'r', 'LineWidth', 3);
+hold on
+loglog(1./freqX,a_Px, 'b', 'LineWidth', 3);
 xlim(gca, [10, 5*1e3]);
-legend('Perp')
+legend('Slip Perp.', 'Slip Parall.')
 ylabel('PSD (mu^3)')
 xlabel('Wavelength (mu)')
 
@@ -93,11 +122,13 @@ disp( 'Select Roughness Exp. Fitting Range')
 %                  fit roughness exponent
 %==========================================================================
 %TODO: -log-transform and lsq fit
+[par, R] = polyfit(  log10(x), log10(y), 1);
+gamma = par(1);
+%gamma = 1 + 2H
+Hurst = (gamma(1)-1)*.5;
+sprintf(  "roughness exponent: %.1f, Hurst=%.2f", gamma, Hurst)
 
-gamma = log10(x)\log10(y);
-sprintf( '%s%.1f%s', "roughness exponent: ", gamma)
 
-%TODO: - determine difference in fitting exponent for different bandwidth (wavelength)
 
 
 

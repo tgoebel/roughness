@@ -28,14 +28,13 @@ Y     =  XYZ(:,2);
 a_x_uni = unique( X);
 a_y_uni = unique( Y);
 sprintf( '%s %.1f %.1f','range of topography:',min(Z), max(Z))
-% spacing
+% spatial increments
 dx  = X(2) - X(1);
 fprintf( '%s%.2f', 'grid spacing in x :', dx)
 dy  = a_y_uni(2) - a_y_uni(1);
 fprintf( '%s%.2f', 'grid spacing in y :', dy)
 %B% interpolation, fill gaps
 [XX, YY] = meshgrid( a_x_uni, a_y_uni);
-size(XX)
 ZZ       = griddata(X, Y, Z, XX, YY, 'linear');
 
 %D% detrend
@@ -73,39 +72,40 @@ sprintf( "rms-roughness: %.3f", rmsZ)
 m_px=zeros(Ny,Nx);
 m_py=zeros(Nx,Ny);
 
-
 freq =(0:Ny-1)./(Ny*dy);
+% a_f=(0:1:nfft-1)./(nfft*delta);
 % figure(3)
 for i=1:Ny-1
     z1=ZZ_detr(:,i);
 
     % detrend and demean each profile
-    z1=z1-mean(z1);
-    z2=detrend(z1);
-    FFTz=fft(z2).*dy;
-    m_py(i,:)=abs(FFTz.^2).*(Ny*dy);
+    a_z2=detrend(z1-mean(z1));
+    %FFTz=fft(z2).*dy;
+    a_fftz = 2*abs( fft(a_z2))/Ny;
+    m_py(i,:)= a_fftz.^2*dy;
     
     % plot detrended roughness profiles
-%     plot( XX(i,:), z1, 'k-', 'LineWidth', 2)
+%     plot( XX(i,:), a_z2, 'k-', 'LineWidth', 2)
 %     ylim( zMin, zMax)
  
 
 end
 
-
 freqX =(0:Nx-1)./(Nx*dx);
 for i=1:Nx-1
     z1=ZZ_detr(i,:);
-    z1=z1-mean(z1);
-    z2=detrend(z1);
-    FFTz=fft(z2).*dx;
-    m_px(i,:)=abs(FFTz.^2).*(Nx*dx);
+    % detrend and demean each profile
+    a_z2=detrend(z1-mean(z1));
+    %FFTz=fft(z2).*dy;
+    a_fftz = 2*abs( fft(a_z2))/Nx;
+    m_px(i,:)=abs(a_fftz.^2).*dx;
 end
 
 a_Px=mean(m_px);
 a_Py=mean(m_py);
 
 figure(3)
+clf()
 %plot ave. power spectrum over wavelength
 loglog(1./freq,a_Py, 'r', 'LineWidth', 3);
 hold on
@@ -121,7 +121,7 @@ disp( 'Select Roughness Exp. Fitting Range')
 %=======================4==================================================
 %                  fit roughness exponent
 %==========================================================================
-%TODO: -log-transform and lsq fit
+%-log-transform and lsq fit
 [par, R] = polyfit(  log10(x), log10(y), 1);
 gamma = par(1);
 %gamma = 1 + 2H

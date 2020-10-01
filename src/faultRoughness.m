@@ -15,6 +15,8 @@ file_in  = "fault_roughness.txt";
 plot_surf = 0;
 zMin = -40; % only for surface plots
 zMax =  40;
+% wavelengths used for fitting the PSD and getting H
+lam_min = 10; lam_max = 150;
 
 %=======================2==================================================
 %                   load data, gridding, detrending etc.
@@ -104,30 +106,37 @@ end
 a_Px=mean(m_px);
 a_Py=mean(m_py);
 
-figure(3)
+fig3 = figure(3);
 clf()
 %plot ave. power spectrum over wavelength
-loglog(1./freq,a_Py, 'r', 'LineWidth', 3);
+loglog(1./freq,  a_Py, 'r', 'LineWidth', 3);
 hold on
 loglog(1./freqX,a_Px, 'b', 'LineWidth', 3);
+xline( lam_min, '-', {'Lower', 'Range'})
+xline( lam_max, '-', {'Upper', 'Range'})
 xlim(gca, [10, 5*1e3]);
 legend('Slip Perp.', 'Slip Parall.')
 ylabel('PSD (mu^3)')
 xlabel('Wavelength (mu)')
 
 disp( 'Select Roughness Exp. Fitting Range')
-[x,y] = ginput(2);
+%[x,y] = ginput(2);
 
 %=======================4==================================================
 %                  fit roughness exponent
 %==========================================================================
+a_lambda = 1./freqX;
+a_sel = a_lambda >= lam_min & a_lambda <= lam_max;
 %-log-transform and lsq fit
-[par, R] = polyfit(  log10(x), log10(y), 1);
+%[par, R] = polyfit(  log10(x), log10(y), 1);
+[par, R] = polyfit(  log10(a_lambda(a_sel)), log10( a_Px(a_sel)), 1);
+
 gamma = par(1);
 %gamma = 1 + 2H
 Hurst = (gamma(1)-1)*.5;
-sprintf(  "roughness exponent: %.1f, Hurst=%.2f", gamma, Hurst)
-
+s_out = sprintf(  "roughness exponent: %.1f, Hurst=%.2f", gamma, Hurst)
+title( s_out)
+saveas(fig3, 'fault_rougness.png')
 
 
 
